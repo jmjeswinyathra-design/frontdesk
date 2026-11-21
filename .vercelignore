@@ -1,0 +1,6 @@
+.env
+.vercel
+test/
+data/tickets.json
+*.log
+node_modules/

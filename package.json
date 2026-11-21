@@ -1,0 +1,15 @@
+{
+  "name": "frontdesk-ai",
+  "version": "1.0.0",
+  "description": "FrontDesk AI - dental clinic chat front desk that answers from a clinic file and hands hard questions to a human",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/acceptance.js",
+    "test:bonus": "node test/bonus.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

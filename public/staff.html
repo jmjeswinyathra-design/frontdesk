@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Staff - FrontDesk AI</title>
+  <script>
+    (function () {
+      try {
+        var t = new URLSearchParams(location.search).get('theme');
+        if (t === 'dark' || t === 'light') {
+          localStorage.setItem('fd_theme', t);
+        } else {
+          t = localStorage.getItem('fd_theme');
+          if (t !== 'dark' && t !== 'light') {
+            t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+        }
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/styles.css?v=11" />
+</head>
+<body>
+  <div class="staff-app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">ST</span>
+        <div>
+          <h1>Staff - Tickets</h1>
+          <p class="sub">Reply to patient questions</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <a class="staff-link" href="/">Patient chat</a>
+        <button id="theme-toggle" class="icon-btn" type="button" aria-label="Toggle theme">Dark</button>
+      </div>
+    </header>
+
+    <div class="staff-tools">
+      <label class="filter">Status:
+        <select id="filter">
+          <option value="all">All</option>
+          <option value="needs human">Needs human</option>
+          <option value="urgent">Urgent</option>
+          <option value="answered">Answered</option>
+          <option value="closed">Closed</option>
+        </select>
+      </label>
+      <button id="refresh" type="button">Refresh</button>
+      <span id="count" class="count"></span>
+    </div>
+
+    <section class="clinic-editor">
+      <h2>Clinic data</h2>
+      <p class="hint">Edit the clinic file (JSON). Saving updates the assistant's answers immediately.</p>
+      <textarea id="clinic-json" rows="10" spellcheck="false"></textarea>
+      <div class="editor-actions">
+        <button id="clinic-save" type="button">Save clinic data</button>
+        <span id="clinic-msg" class="count"></span>
+      </div>
+    </section>
+
+    <main id="ticket-queue" class="tickets"></main>
+  </div>
+  <script src="/theme.js?v=11"></script>
+  <script src="/staff.js?v=11"></script>
+</body>
+</html>
+
+
+
+
+
+
+

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Bright Roots Dental - Chat</title>
+  <script>
+    (function () {
+      try {
+        var t = new URLSearchParams(location.search).get('theme');
+        if (t === 'dark' || t === 'light') {
+          localStorage.setItem('fd_theme', t);
+        } else {
+          t = localStorage.getItem('fd_theme');
+          if (t !== 'dark' && t !== 'light') {
+            t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+        }
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/styles.css?v=11" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">BR</span>
+        <div>
+          <h1>Bright Roots Dental</h1>
+          <p class="sub">Front desk assistant - Banjara Hills, Hyderabad</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <a class="staff-link" href="/staff">Staff</a>
+        <button id="new-chat" class="icon-btn" type="button" aria-label="Start a new chat">New chat</button>
+        <button id="theme-toggle" class="icon-btn" type="button" aria-label="Toggle theme">Dark</button>
+      </div>
+    </header>
+
+    <div class="contact">
+      <a class="contact-item" id="call-link" href="tel:04055500123">Call 040 5550 0123</a>
+      <a class="contact-item emg" id="emg-link" href="tel:9800000123">Emergency 98000 00123</a>
+    </div>
+
+    <main class="chat" id="chat" aria-live="polite"></main>
+
+    <div class="quick" id="quick">
+      <button type="button" data-q="What time do you open on Saturday?">Timings</button>
+      <button type="button" data-q="What are your prices?">Prices</button>
+      <button type="button" data-q="Who are your doctors?">Doctors</button>
+      <button type="button" data-q="Where are you located?">Location</button>
+      <button type="button" data-q="Do you accept insurance?">Insurance</button>
+      <button type="button" data-q="I want to book an appointment for tomorrow at 3 pm">Book appointment</button>
+      <button type="button" data-q="I'm done, thanks!">End chat</button>
+    </div>
+
+    <form class="composer" id="composer" autocomplete="off">
+      <input id="chat-input" type="text" placeholder="Ask about timings, prices, doctors..." aria-label="Your message" />
+      <button id="chat-send" type="submit">Send</button>
+    </form>
+  </div>
+  <script src="/theme.js?v=11"></script>
+  <script src="/app.js?v=11"></script>
+</body>
+</html>
+
+
+
+
+
+
+
