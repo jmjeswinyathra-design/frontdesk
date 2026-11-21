@@ -1,8 +1,12 @@
 {
   "cleanUrls": true,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/index" }
+  ],
   "functions": {
-    "api/[...path].js": {
-      "maxDuration": 30
+    "api/index.js": {
+      "maxDuration": 30,
+      "includeFiles": ["data/clinic.json", "public/**"]
     }
   }
 }

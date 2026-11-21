@@ -10,7 +10,17 @@ const { loadClinic, saveClinic } = require('./src/clinic');
 const tickets = require('./src/tickets');
 const engine = require('./src/engine');
 
-const PUBLIC_DIR = path.join(__dirname, 'public');
+function resolvePublicDir() {
+  const candidates = [path.join(__dirname, 'public'), path.join(process.cwd(), 'public')];
+  for (let i = 0; i < candidates.length; i++) {
+    try {
+      if (fs.statSync(candidates[i]).isDirectory()) return candidates[i];
+    } catch (e) {}
+  }
+  return path.join(__dirname, 'public');
+}
+
+const PUBLIC_DIR = resolvePublicDir();
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -61,133 +71,135 @@ function readBody(req) {
   });
 }
 
-function createServer() {
-  return http.createServer(async (req, res) => {
-    try {
-      const u = new URL(req.url, 'http://' + (req.headers.host || 'localhost'));
-      const p = u.pathname;
+async function handler(req, res) {
+  try {
+    const u = new URL(req.url, 'http://' + (req.headers.host || 'localhost'));
+    const p = u.pathname;
 
-      if (req.method === 'POST' && p === '/api/chat') {
-        const body = JSON.parse((await readBody(req)) || '{}');
-        const message = String(body.message || '');
-        const sessionId = String(body.sessionId || 'anon');
-        if (!message.trim()) return sendJSON(res, 400, { error: 'message is required' });
-        const clinic = loadClinic();
-        const result = await engine.respond(message, clinic);
-        let ticket = null;
-        if (result.createTicket) {
-          ticket = tickets.create({
-            sessionId: sessionId,
-            question: message,
-            status: result.createTicket.status,
-            time: result.createTicket.time,
-            type: result.createTicket.type,
-            doctor: result.createTicket.doctor,
-            available: result.createTicket.available,
-          });
-        }
-        let receipt = null;
-        if (ticket && result.kind === 'booking') {
-          receipt = {
-            reference: 'FD-' + ticket.id.replace(/-/g, '').slice(0, 8).toUpperCase(),
-            clinic: clinic.clinic.name,
-            phone: clinic.clinic.phone,
-            address: clinic.clinic.address,
-            time: ticket.time,
-            doctor: ticket.doctor || null,
-            available: ticket.available == null ? null : ticket.available,
-            status: ticket.status,
-            createdAt: ticket.createdAt,
-          };
-        }
-        let reply = result.reply;
-        if (receipt) reply = reply + ' Your booking reference is ' + receipt.reference + '.';
-        return sendJSON(res, 200, {
-          reply: reply,
-          label: result.label || null,
-          kind: result.kind,
-          intent: result.intent || null,
-          ticket: ticket ? { id: ticket.id, status: ticket.status } : null,
-          receipt: receipt,
+    if (req.method === 'POST' && p === '/api/chat') {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const message = String(body.message || '');
+      const sessionId = String(body.sessionId || 'anon');
+      if (!message.trim()) return sendJSON(res, 400, { error: 'message is required' });
+      const clinic = loadClinic();
+      const result = await engine.respond(message, clinic);
+      let ticket = null;
+      if (result.createTicket) {
+        ticket = tickets.create({
           sessionId: sessionId,
+          question: message,
+          status: result.createTicket.status,
+          time: result.createTicket.time,
+          type: result.createTicket.type,
+          doctor: result.createTicket.doctor,
+          available: result.createTicket.available,
         });
       }
-
-      const replyMatch = p.match(/^\/api\/tickets\/([^/]+)\/reply$/);
-      if (req.method === 'POST' && replyMatch) {
-        const id = decodeURIComponent(replyMatch[1]);
-        const body = JSON.parse((await readBody(req)) || '{}');
-        const reply = String(body.reply || '').trim();
-        if (!reply) return sendJSON(res, 400, { error: 'reply is required' });
-        const ticket = tickets.addReply(id, reply);
-        if (!ticket) return sendJSON(res, 404, { error: 'ticket not found' });
-        return sendJSON(res, 200, { ticket: ticket });
+      let receipt = null;
+      if (ticket && result.kind === 'booking') {
+        receipt = {
+          reference: 'FD-' + ticket.id.replace(/-/g, '').slice(0, 8).toUpperCase(),
+          clinic: clinic.clinic.name,
+          phone: clinic.clinic.phone,
+          address: clinic.clinic.address,
+          time: ticket.time,
+          doctor: ticket.doctor || null,
+          available: ticket.available == null ? null : ticket.available,
+          status: ticket.status,
+          createdAt: ticket.createdAt,
+        };
       }
-
-      const closeMatch = p.match(/^\/api\/tickets\/([^/]+)\/close$/);
-      if (req.method === 'POST' && closeMatch) {
-        const id = decodeURIComponent(closeMatch[1]);
-        const ticket = tickets.closeTicket(id);
-        if (!ticket) return sendJSON(res, 404, { error: 'ticket not found' });
-        return sendJSON(res, 200, { ticket: ticket });
-      }
-
-      const sessionMatch = p.match(/^\/api\/session\/([^/]+)$/);
-      if (req.method === 'GET' && sessionMatch) {
-        const id = decodeURIComponent(sessionMatch[1]);
-        return sendJSON(res, 200, { tickets: tickets.forSession(id) });
-      }
-
-      if (req.method === 'GET' && p === '/api/tickets') {
-        return sendJSON(res, 200, { tickets: tickets.list() });
-      }
-
-      if (req.method === 'GET' && p === '/api/config') {
-        const c = loadClinic().clinic;
-        return sendJSON(res, 200, {
-          name: c.name,
-          address: c.address,
-          phone: c.phone,
-          emergency: c.emergency_phone,
-        });
-      }
-
-      if (req.method === 'GET' && p === '/api/clinic') {
-        return sendJSON(res, 200, loadClinic());
-      }
-
-      if (req.method === 'POST' && p === '/api/clinic') {
-        const body = JSON.parse((await readBody(req)) || '{}');
-        if (!body || !body.clinic || !body.hours || !Array.isArray(body.doctors) || !Array.isArray(body.services) || !body.policies) {
-          return sendJSON(res, 400, { error: 'invalid clinic data' });
-        }
-        saveClinic(body);
-        return sendJSON(res, 200, { ok: true });
-      }
-
-      if (req.method === 'GET' && (p === '/' || p === '/index.html')) {
-        return serveFile(res, path.join(PUBLIC_DIR, 'index.html'));
-      }
-
-      if (req.method === 'GET' && (p === '/staff' || p === '/staff/')) {
-        return serveFile(res, path.join(PUBLIC_DIR, 'staff.html'));
-      }
-
-      if (req.method === 'GET') {
-        const safe = path.normalize(decodeURIComponent(p)).replace(/^([/\\])+/, '');
-        const filePath = path.join(PUBLIC_DIR, safe);
-        if (filePath === PUBLIC_DIR || filePath.startsWith(PUBLIC_DIR + path.sep)) {
-          return serveFile(res, filePath);
-        }
-      }
-
-      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end('Not found');
-    } catch (e) {
-      if (!res.headersSent) sendJSON(res, 500, { error: String((e && e.message) || e) });
-      else res.end();
+      let reply = result.reply;
+      if (receipt) reply = reply + ' Your booking reference is ' + receipt.reference + '.';
+      return sendJSON(res, 200, {
+        reply: reply,
+        label: result.label || null,
+        kind: result.kind,
+        intent: result.intent || null,
+        ticket: ticket ? { id: ticket.id, status: ticket.status } : null,
+        receipt: receipt,
+        sessionId: sessionId,
+      });
     }
-  });
+
+    const replyMatch = p.match(/^\/api\/tickets\/([^/]+)\/reply$/);
+    if (req.method === 'POST' && replyMatch) {
+      const id = decodeURIComponent(replyMatch[1]);
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const reply = String(body.reply || '').trim();
+      if (!reply) return sendJSON(res, 400, { error: 'reply is required' });
+      const ticket = tickets.addReply(id, reply);
+      if (!ticket) return sendJSON(res, 404, { error: 'ticket not found' });
+      return sendJSON(res, 200, { ticket: ticket });
+    }
+
+    const closeMatch = p.match(/^\/api\/tickets\/([^/]+)\/close$/);
+    if (req.method === 'POST' && closeMatch) {
+      const id = decodeURIComponent(closeMatch[1]);
+      const ticket = tickets.closeTicket(id);
+      if (!ticket) return sendJSON(res, 404, { error: 'ticket not found' });
+      return sendJSON(res, 200, { ticket: ticket });
+    }
+
+    const sessionMatch = p.match(/^\/api\/session\/([^/]+)$/);
+    if (req.method === 'GET' && sessionMatch) {
+      const id = decodeURIComponent(sessionMatch[1]);
+      return sendJSON(res, 200, { tickets: tickets.forSession(id) });
+    }
+
+    if (req.method === 'GET' && p === '/api/tickets') {
+      return sendJSON(res, 200, { tickets: tickets.list() });
+    }
+
+    if (req.method === 'GET' && p === '/api/config') {
+      const c = loadClinic().clinic;
+      return sendJSON(res, 200, {
+        name: c.name,
+        address: c.address,
+        phone: c.phone,
+        emergency: c.emergency_phone,
+      });
+    }
+
+    if (req.method === 'GET' && p === '/api/clinic') {
+      return sendJSON(res, 200, loadClinic());
+    }
+
+    if (req.method === 'POST' && p === '/api/clinic') {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      if (!body || !body.clinic || !body.hours || !Array.isArray(body.doctors) || !Array.isArray(body.services) || !body.policies) {
+        return sendJSON(res, 400, { error: 'invalid clinic data' });
+      }
+      saveClinic(body);
+      return sendJSON(res, 200, { ok: true });
+    }
+
+    if (req.method === 'GET' && (p === '/' || p === '/index.html')) {
+      return serveFile(res, path.join(PUBLIC_DIR, 'index.html'));
+    }
+
+    if (req.method === 'GET' && (p === '/staff' || p === '/staff/')) {
+      return serveFile(res, path.join(PUBLIC_DIR, 'staff.html'));
+    }
+
+    if (req.method === 'GET') {
+      const safe = path.normalize(decodeURIComponent(p)).replace(/^([/\\])+/, '');
+      const filePath = path.join(PUBLIC_DIR, safe);
+      if (filePath === PUBLIC_DIR || filePath.startsWith(PUBLIC_DIR + path.sep)) {
+        return serveFile(res, filePath);
+      }
+    }
+
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Not found');
+  } catch (e) {
+    if (!res.headersSent) sendJSON(res, 500, { error: String((e && e.message) || e) });
+    else res.end();
+  }
+}
+
+function createServer() {
+  return http.createServer(handler);
 }
 
 if (require.main === module) {
@@ -198,4 +210,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createServer };
+module.exports = { createServer, handler };
